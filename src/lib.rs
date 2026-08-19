@@ -349,13 +349,15 @@ where
 /// Always returns `true`; a predicate for `#[serde(skip_serializing_if)]`.
 ///
 /// Use `#[serde(skip_serializing_if = "::json_serde::always")]` in place of
-/// `#[serde(skip_serializing)]` on fields that must never serialize when
+/// `#[serde(skip_serializing)]` on fields with the [`Absent`] type when
 /// the containing type also derives `JsonSchema` (either schemars version).
 /// The two attribute forms serialize identically, but the schemas differ:
 /// schemars 0.8 (through 0.8.22) incorrectly marks `default` +
-/// `skip_serializing` fields as required, and schemars 1.x decorates them
-/// with `writeOnly`; conditionally-skipped fields avoid both. See
-/// [`Absent`].
+/// `skip_serializing` fields as required, and schemars 1.0 (as of 1.2.2)
+/// spuriously annotates the field `writeOnly` (when, in fact, no value can be
+/// written!).
+///
+/// See [`Absent`].
 #[must_use]
 #[inline]
 pub fn always<T>(_: &T) -> bool {
@@ -735,46 +737,6 @@ mod tests {
     #[cfg(feature = "schemars1")]
     #[test]
     fn test_absent_schema_v1() {
-        // Unlike schemars 0.8.22, schemars 1.x correctly treats default +
-        // skip_serializing as an optional property, so no workaround akin to
-        // the `always` helper is needed here.
-        #[derive(Serialize, Deserialize, schemars1::JsonSchema)]
-        #[schemars(crate = "schemars1")]
-        struct Test {
-            #[serde(default, skip_serializing)]
-            absent: Absent,
-        }
-
-        let test = Test { absent: Absent };
-
-        assert_eq!(serde_json::to_string(&test).unwrap(), "{}");
-
-        let de = serde_json::from_str::<Test>("{}").unwrap();
-        let Absent = de.absent;
-        assert!(serde_json::from_str::<Test>(r#"{ "absent": null }"#).is_err());
-
-        let schema = schemars1::schema_for!(Test);
-        // schemars 1.x marks skip_serializing fields as `writeOnly`; to
-        // attach that keyword it rewrites the `false` schema as its object
-        // form, `{"not": {}}`, which is equivalent.
-        let expected = serde_json::json!({
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Test",
-            "type": "object",
-            "properties": {
-                "absent": {
-                    "not": {},
-                    "writeOnly": true
-                }
-            }
-        });
-
-        assert_eq!(serde_json::to_value(&schema).unwrap(), expected);
-    }
-
-    #[cfg(feature = "schemars1")]
-    #[test]
-    fn test_absent_schema_v1_always() {
         // The `always` form is the recommended annotation: a conditionally
         // skipped field gets no `writeOnly` decoration, so the `false`
         // schema survives intact.
