@@ -83,5 +83,5 @@ derive-less for consumers.
 
 ## Notes
 
-- Pre-publication; API unstable.
+- Early alpha; API unstable.
 - Part of the typify/progenitor code-generation stack.
