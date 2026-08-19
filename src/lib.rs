@@ -51,12 +51,6 @@ use serde_core::{
 /// cannot be deserialized from `null`. In the second case, a `null` value
 /// results in `field` having a value of `Some(None)` since `Option<String>`
 /// *can* be deserialized from `null`.
-///
-/// # Errors
-///
-/// Fails if `T` cannot be deserialized from the input--notably, when the
-/// value is `null` and `T` itself does not accept `null`.
-#[inline]
 pub fn deserialize_some<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: Deserializer<'de>,
@@ -82,11 +76,6 @@ where
     S: serde_core::ser::SerializeSeq,
 {
     /// Wrap the in-progress sequence serializer `seq_serializer`.
-    ///
-    /// Elements of a sequence-shaped value serialized into the returned
-    /// serializer are appended to `seq_serializer`'s sequence; see the
-    /// type-level docs.
-    #[inline]
     pub fn new(seq_serializer: &'a mut S) -> Self {
         Self(seq_serializer)
     }
