@@ -1,6 +1,8 @@
 // Copyright 2026 Oxide Computer Company
 
 #![doc = include_str!("../README.md")]
+#![forbid(unsafe_code)]
+#![warn(missing_docs, missing_debug_implementations)]
 
 // Alias the crate under its external name so the unit tests can use the
 // documented attribute recipes verbatim.
@@ -49,6 +51,12 @@ use serde_core::{
 /// cannot be deserialized from `null`. In the second case, a `null` value
 /// results in `field` having a value of `Some(None)` since `Option<String>`
 /// *can* be deserialized from `null`.
+///
+/// # Errors
+///
+/// Fails if `T` cannot be deserialized from the input--notably, when the
+/// value is `null` and `T` itself does not accept `null`.
+#[inline]
 pub fn deserialize_some<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: Deserializer<'de>,
@@ -73,6 +81,12 @@ impl<'a, S> FlattenedSequenceSerializer<'a, S>
 where
     S: serde_core::ser::SerializeSeq,
 {
+    /// Wrap the in-progress sequence serializer `seq_serializer`.
+    ///
+    /// Elements of a sequence-shaped value serialized into the returned
+    /// serializer are appended to `seq_serializer`'s sequence; see the
+    /// type-level docs.
+    #[inline]
     pub fn new(seq_serializer: &'a mut S) -> Self {
         Self(seq_serializer)
     }
@@ -84,7 +98,14 @@ where
     }
 }
 
-impl<'a, S> Serializer for FlattenedSequenceSerializer<'a, S>
+impl<S> std::fmt::Debug for FlattenedSequenceSerializer<'_, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FlattenedSequenceSerializer")
+            .finish_non_exhaustive()
+    }
+}
+
+impl<S> Serializer for FlattenedSequenceSerializer<'_, S>
 where
     S: serde_core::ser::SerializeSeq,
 {
@@ -95,9 +116,9 @@ where
     type SerializeTuple = Impossible<Self::Ok, Self::Error>;
     type SerializeTupleStruct = Impossible<Self::Ok, Self::Error>;
     type SerializeTupleVariant = Impossible<Self::Ok, Self::Error>;
-    type SerializeMap = serde_core::ser::Impossible<Self::Ok, Self::Error>;
-    type SerializeStruct = serde_core::ser::Impossible<Self::Ok, Self::Error>;
-    type SerializeStructVariant = serde_core::ser::Impossible<Self::Ok, Self::Error>;
+    type SerializeMap = Impossible<Self::Ok, Self::Error>;
+    type SerializeStruct = Impossible<Self::Ok, Self::Error>;
+    type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
         Ok(self)
@@ -126,9 +147,7 @@ where
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        Err(serde_core::ser::Error::custom(
-            "FlattenedSequenceSerializer does not support maps",
-        ))
+        Self::wrong_type_error()
     }
 
     fn serialize_struct(
@@ -136,9 +155,7 @@ where
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        Err(serde_core::ser::Error::custom(
-            "FlattenedSequenceSerializer does not support structs",
-        ))
+        Self::wrong_type_error()
     }
 
     fn serialize_struct_variant(
@@ -148,9 +165,7 @@ where
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        Err(serde_core::ser::Error::custom(
-            "FlattenedSequenceSerializer does not support struct variants",
-        ))
+        Self::wrong_type_error()
     }
 
     fn serialize_bool(self, _v: bool) -> Result<Self::Ok, Self::Error> {
@@ -262,7 +277,7 @@ where
     }
 }
 
-impl<'a, S> SerializeSeq for FlattenedSequenceSerializer<'a, S>
+impl<S> SerializeSeq for FlattenedSequenceSerializer<'_, S>
 where
     S: serde_core::ser::SerializeSeq,
 {
@@ -296,12 +311,28 @@ where
 pub struct FlattenedSequenceDeserializer<'a, S>(&'a mut S);
 
 impl<'a, S> FlattenedSequenceDeserializer<'a, S> {
-    pub fn new(seq_access: &'a mut S) -> Self {
+    /// Wrap the in-progress sequence access `seq_access`.
+    ///
+    /// A sequence-shaped value deserialized from the returned deserializer
+    /// consumes the remaining elements of `seq_access`'s sequence; see the
+    /// type-level docs.
+    #[inline]
+    pub fn new<'de>(seq_access: &'a mut S) -> Self
+    where
+        S: serde_core::de::SeqAccess<'de>,
+    {
         Self(seq_access)
     }
 }
 
-impl<'de, 'a, S> Deserializer<'de> for FlattenedSequenceDeserializer<'a, S>
+impl<S> std::fmt::Debug for FlattenedSequenceDeserializer<'_, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FlattenedSequenceDeserializer")
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'de, S> Deserializer<'de> for FlattenedSequenceDeserializer<'_, S>
 where
     S: serde_core::de::SeqAccess<'de>,
 {
@@ -311,7 +342,9 @@ where
     where
         V: serde_core::de::Visitor<'de>,
     {
-        Err(S::Error::custom("type must expect a sequence"))
+        Err(S::Error::custom(
+            "FlattenedSequenceDeserializer only supports sequence values",
+        ))
     }
 
     serde_core::forward_to_deserialize_any! {
@@ -337,6 +370,8 @@ where
 /// fields as required in the generated schema, while conditionally-skipped
 /// fields are correctly optional. The two attribute forms serialize
 /// identically. See [`Absent`].
+#[must_use]
+#[inline]
 pub fn always<T>(_: &T) -> bool {
     true
 }
@@ -556,7 +591,7 @@ mod tests {
         let input = "[1, \"Two\", \"Three\"]";
         let de_result = serde_json::from_str::<TestType>(input);
         let e = de_result.unwrap_err().to_string();
-        assert!(e.starts_with("invalid type"), "{e}",);
+        assert!(e.starts_with("invalid type"), "{e}");
     }
 
     #[test]
