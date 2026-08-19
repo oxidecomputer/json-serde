@@ -1,5 +1,9 @@
 # json-serde
 
+[![json-serde on crates.io](https://img.shields.io/crates/v/json-serde)](https://crates.io/crates/json-serde)
+[![Documentation (latest release)](https://img.shields.io/badge/docs-latest%20version-brightgreen.svg)](https://docs.rs/json-serde)
+[![License](https://img.shields.io/badge/license-Apache-green.svg)](LICENSE)
+
 Runtime serde helpers for esoteric JSON semantics
 
 ## Overview
