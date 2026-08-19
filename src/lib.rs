@@ -503,7 +503,7 @@ mod tests {
     }
 
     #[test]
-    fn flatten_tuple_vec() {
+    fn test_flatten_tuple_vec() {
         #[derive(Debug, Eq, PartialEq)]
         struct TestType(u32, String, Vec<u32>);
 
@@ -594,6 +594,104 @@ mod tests {
         assert!(e.starts_with("invalid type"), "{e}");
     }
 
+    /// Serialize `value` into a flattening serializer wrapped around a
+    /// JSON array and return the resulting error message.
+    fn flatten_ser_err(value: impl Serialize) -> String {
+        struct Wrapper<T>(T);
+
+        impl<T: Serialize> Serialize for Wrapper<T> {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                let mut seq = serializer.serialize_seq(None)?;
+                self.0
+                    .serialize(FlattenedSequenceSerializer::new(&mut seq))?;
+                seq.end()
+            }
+        }
+
+        serde_json::to_string(&Wrapper(value))
+            .unwrap_err()
+            .to_string()
+    }
+
+    #[test]
+    fn test_flatten_serializer_rejects_scalar() {
+        assert_eq!(
+            flatten_ser_err(42u32),
+            "FlattenedSequenceSerializer only supports sequence values",
+        );
+    }
+
+    #[test]
+    fn test_flatten_serializer_rejects_map() {
+        let map = std::collections::BTreeMap::from([("key", "value")]);
+        assert_eq!(
+            flatten_ser_err(map),
+            "FlattenedSequenceSerializer only supports sequence values",
+        );
+    }
+
+    #[test]
+    fn test_flatten_deserializer_rejects_non_seq() {
+        #[derive(Debug)]
+        struct TestType;
+
+        impl<'de> Deserialize<'de> for TestType {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct Visitor;
+                impl<'de> serde::de::Visitor<'de> for Visitor {
+                    type Value = TestType;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        formatter.write_str("a sequence")
+                    }
+
+                    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                    where
+                        A: serde::de::SeqAccess<'de>,
+                    {
+                        // A non-seq target: u32 forwards to deserialize_any.
+                        let _ = u32::deserialize(FlattenedSequenceDeserializer::new(&mut seq))?;
+                        Ok(TestType)
+                    }
+                }
+                deserializer.deserialize_seq(Visitor)
+            }
+        }
+
+        let e = serde_json::from_str::<TestType>("[1, 2, 3]")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            e.starts_with("FlattenedSequenceDeserializer only supports sequence values"),
+            "{e}",
+        );
+    }
+
+    #[test]
+    fn test_absent_serialize_requires_skip() {
+        // Without skip_serializing (or the always predicate), serializing
+        // a struct containing Absent is an error.
+        #[derive(Serialize)]
+        struct Test {
+            absent: Absent,
+        }
+
+        let e = serde_json::to_string(&Test { absent: Absent })
+            .unwrap_err()
+            .to_string();
+        assert_eq!(
+            e,
+            "field must be annotated with `skip_serializing` (or \
+             `skip_serializing_if = \"json_serde::always\"`)",
+        );
+    }
+
     #[test]
     fn test_absent() {
         #[derive(Serialize, Deserialize)]
@@ -629,6 +727,8 @@ mod tests {
 
         assert_eq!(serde_json::to_string(&test).unwrap(), "{}");
 
+        let de = serde_json::from_str::<Test>("{}").unwrap();
+        let Absent = de.absent;
         assert!(serde_json::from_str::<Test>(r#"{ "absent": null }"#).is_err());
 
         let schema = schemars08::schema_for!(Test);
