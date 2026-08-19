@@ -301,11 +301,6 @@ pub struct FlattenedSequenceDeserializer<'a, S>(&'a mut S);
 
 impl<'a, S> FlattenedSequenceDeserializer<'a, S> {
     /// Wrap the in-progress sequence access `seq_access`.
-    ///
-    /// A sequence-shaped value deserialized from the returned deserializer
-    /// consumes the remaining elements of `seq_access`'s sequence; see the
-    /// type-level docs.
-    #[inline]
     pub fn new<'de>(seq_access: &'a mut S) -> Self
     where
         S: serde_core::de::SeqAccess<'de>,
