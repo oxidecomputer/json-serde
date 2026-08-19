@@ -66,11 +66,13 @@ specific, named properties may be disallowed. To handle these cases, the
 With the `schemars1` or `schemars08` feature enabled, its `JsonSchema` impl
 emits the `false`--unsatisfiable--schema.
 
-Note that schemars 0.8 (through 0.8.22) incorrectly marks `default` +
-`skip_serializing` fields as required; on types deriving the schemars 0.8
-`JsonSchema`, use `#[serde(skip_serializing_if = "::json_serde::always")]`
-instead of `skip_serializing`. The `always` predicate serializes
-identically and works around the schemars bug.
+On types deriving `JsonSchema` (either version), use
+`#[serde(skip_serializing_if = "::json_serde::always")]` instead of
+`skip_serializing`. The `always` predicate serializes identically and
+produces better schemas: schemars 0.8 (through 0.8.22) incorrectly marks
+`default` + `skip_serializing` fields as required, and schemars 1.x
+decorates them with `writeOnly`, rewriting the `false` schema into its
+object form to do so.
 
 ## Features
 

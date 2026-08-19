@@ -350,11 +350,12 @@ where
 ///
 /// Use `#[serde(skip_serializing_if = "::json_serde::always")]` in place of
 /// `#[serde(skip_serializing)]` on fields that must never serialize when
-/// the containing type also derives the schemars 0.8 `JsonSchema`: schemars
-/// 0.8 (through 0.8.22) incorrectly marks `default` + `skip_serializing`
-/// fields as required in the generated schema, while conditionally-skipped
-/// fields are correctly optional. The two attribute forms serialize
-/// identically. See [`Absent`].
+/// the containing type also derives `JsonSchema` (either schemars version).
+/// The two attribute forms serialize identically, but the schemas differ:
+/// schemars 0.8 (through 0.8.22) incorrectly marks `default` +
+/// `skip_serializing` fields as required, and schemars 1.x decorates them
+/// with `writeOnly`; conditionally-skipped fields avoid both. See
+/// [`Absent`].
 #[must_use]
 #[inline]
 pub fn always<T>(_: &T) -> bool {
@@ -765,6 +766,40 @@ mod tests {
                     "not": {},
                     "writeOnly": true
                 }
+            }
+        });
+
+        assert_eq!(serde_json::to_value(&schema).unwrap(), expected);
+    }
+
+    #[cfg(feature = "schemars1")]
+    #[test]
+    fn test_absent_schema_v1_always() {
+        // The `always` form is the recommended annotation: a conditionally
+        // skipped field gets no `writeOnly` decoration, so the `false`
+        // schema survives intact.
+        #[derive(Serialize, Deserialize, schemars1::JsonSchema)]
+        #[schemars(crate = "schemars1")]
+        struct Test {
+            #[serde(default, skip_serializing_if = "crate::always")]
+            absent: Absent,
+        }
+
+        let test = Test { absent: Absent };
+
+        assert_eq!(serde_json::to_string(&test).unwrap(), "{}");
+
+        let de = serde_json::from_str::<Test>("{}").unwrap();
+        let Absent = de.absent;
+        assert!(serde_json::from_str::<Test>(r#"{ "absent": null }"#).is_err());
+
+        let schema = schemars1::schema_for!(Test);
+        let expected = serde_json::json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Test",
+            "type": "object",
+            "properties": {
+                "absent": false
             }
         });
 
