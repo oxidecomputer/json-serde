@@ -1,5 +1,9 @@
 # json-serde
 
+[![json-serde on crates.io](https://img.shields.io/crates/v/json-serde)](https://crates.io/crates/json-serde)
+[![Documentation (latest release)](https://img.shields.io/badge/docs-latest%20version-brightgreen.svg)](https://docs.rs/json-serde)
+[![License](https://img.shields.io/badge/license-Apache-green.svg)](https://github.com/oxidecomputer/json-serde/blob/main/LICENSE)
+
 Runtime serde helpers for esoteric JSON semantics
 
 ## Overview
@@ -62,11 +66,13 @@ specific, named properties may be disallowed. To handle these cases, the
 With the `schemars1` or `schemars08` feature enabled, its `JsonSchema` impl
 emits the `false`--unsatisfiable--schema.
 
-Note that schemars 0.8 (through 0.8.22) incorrectly marks `default` +
-`skip_serializing` fields as required; on types deriving the schemars 0.8
-`JsonSchema`, use `#[serde(skip_serializing_if = "::json_serde::always")]`
-instead of `skip_serializing`. The `always` predicate serializes
-identically and works around the schemars bug.
+On types deriving `JsonSchema` (either version), use
+`#[serde(skip_serializing_if = "::json_serde::always")]` instead of
+`skip_serializing`. The `always` predicate serializes identically and produces
+better schemas: schemars 0.8 (through 0.8.22) incorrectly marks `default` +
+`skip_serializing` fields as required, and schemars 1.0 (as of 1.2.2)
+spuriously annotates the field `writeOnly` (when, in fact, no value can be
+written!).
 
 ## Features
 
@@ -79,5 +85,5 @@ derive-less for consumers.
 
 ## Notes
 
-- Pre-publication; API unstable.
+- Early alpha; API unstable.
 - Part of the typify/progenitor code-generation stack.

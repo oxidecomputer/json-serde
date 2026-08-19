@@ -5,9 +5,10 @@ edition = "2024"
 rust-version = "1.97"
 license = "Apache-2.0"
 repository = "https://github.com/oxidecomputer/json-serde"
-description = "Serde helpers for JSON-specific serialization semantics"
+description = "Runtime serde helpers for esoteric JSON semantics"
 keywords = ["serde", "json", "json-schema", "codegen"]
 categories = ["encoding"]
+exclude = [".github", "rust-toolchain.toml"]
 
 [package.metadata.docs.rs]
 all-features = true

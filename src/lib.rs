@@ -1,6 +1,8 @@
 // Copyright 2026 Oxide Computer Company
 
 #![doc = include_str!("../README.md")]
+#![forbid(unsafe_code)]
+#![warn(missing_docs, missing_debug_implementations)]
 
 // Alias the crate under its external name so the unit tests can use the
 // documented attribute recipes verbatim.
@@ -73,18 +75,27 @@ impl<'a, S> FlattenedSequenceSerializer<'a, S>
 where
     S: serde_core::ser::SerializeSeq,
 {
+    /// Wrap the in-progress sequence serializer `seq_serializer`.
     pub fn new(seq_serializer: &'a mut S) -> Self {
         Self(seq_serializer)
     }
 
-    fn wrong_type_error<T>() -> Result<T, S::Error> {
-        Err(serde_core::ser::Error::custom(
-            "FlattenedSequenceSerializer only supports sequence values",
-        ))
+    fn wrong_type_error<T>(kind: &str) -> Result<T, S::Error> {
+        Err(serde_core::ser::Error::custom(format!(
+            "FlattenedSequenceSerializer only supports sequence values, \
+             not {kind}",
+        )))
     }
 }
 
-impl<'a, S> Serializer for FlattenedSequenceSerializer<'a, S>
+impl<S> std::fmt::Debug for FlattenedSequenceSerializer<'_, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FlattenedSequenceSerializer")
+            .finish_non_exhaustive()
+    }
+}
+
+impl<S> Serializer for FlattenedSequenceSerializer<'_, S>
 where
     S: serde_core::ser::SerializeSeq,
 {
@@ -95,16 +106,16 @@ where
     type SerializeTuple = Impossible<Self::Ok, Self::Error>;
     type SerializeTupleStruct = Impossible<Self::Ok, Self::Error>;
     type SerializeTupleVariant = Impossible<Self::Ok, Self::Error>;
-    type SerializeMap = serde_core::ser::Impossible<Self::Ok, Self::Error>;
-    type SerializeStruct = serde_core::ser::Impossible<Self::Ok, Self::Error>;
-    type SerializeStructVariant = serde_core::ser::Impossible<Self::Ok, Self::Error>;
+    type SerializeMap = Impossible<Self::Ok, Self::Error>;
+    type SerializeStruct = Impossible<Self::Ok, Self::Error>;
+    type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
         Ok(self)
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("tuple")
     }
 
     fn serialize_tuple_struct(
@@ -112,7 +123,7 @@ where
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("tuple struct")
     }
 
     fn serialize_tuple_variant(
@@ -122,13 +133,11 @@ where
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("tuple variant")
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        Err(serde_core::ser::Error::custom(
-            "FlattenedSequenceSerializer does not support maps",
-        ))
+        Self::wrong_type_error("map")
     }
 
     fn serialize_struct(
@@ -136,9 +145,7 @@ where
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        Err(serde_core::ser::Error::custom(
-            "FlattenedSequenceSerializer does not support structs",
-        ))
+        Self::wrong_type_error("struct")
     }
 
     fn serialize_struct_variant(
@@ -148,84 +155,82 @@ where
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        Err(serde_core::ser::Error::custom(
-            "FlattenedSequenceSerializer does not support struct variants",
-        ))
+        Self::wrong_type_error("struct variant")
     }
 
     fn serialize_bool(self, _v: bool) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("bool")
     }
 
     fn serialize_i8(self, _v: i8) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("i8")
     }
 
     fn serialize_i16(self, _v: i16) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("i16")
     }
 
     fn serialize_i32(self, _v: i32) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("i32")
     }
 
     fn serialize_i64(self, _v: i64) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("i64")
     }
 
     fn serialize_u8(self, _v: u8) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("u8")
     }
 
     fn serialize_u16(self, _v: u16) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("u16")
     }
 
     fn serialize_u32(self, _v: u32) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("u32")
     }
 
     fn serialize_u64(self, _v: u64) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("u64")
     }
 
     fn serialize_f32(self, _v: f32) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("f32")
     }
 
     fn serialize_f64(self, _v: f64) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("f64")
     }
 
     fn serialize_char(self, _v: char) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("char")
     }
 
     fn serialize_str(self, _v: &str) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("str")
     }
 
     fn serialize_bytes(self, _v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("bytes")
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("None")
     }
 
     fn serialize_some<T>(self, _value: &T) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + serde_core::Serialize,
     {
-        Self::wrong_type_error()
+        Self::wrong_type_error("Some")
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("unit")
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("unit struct")
     }
 
     fn serialize_unit_variant(
@@ -234,7 +239,7 @@ where
         _variant_index: u32,
         _variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        Self::wrong_type_error()
+        Self::wrong_type_error("unit variant")
     }
 
     fn serialize_newtype_struct<T>(
@@ -245,7 +250,7 @@ where
     where
         T: ?Sized + serde_core::Serialize,
     {
-        Self::wrong_type_error()
+        Self::wrong_type_error("newtype struct")
     }
 
     fn serialize_newtype_variant<T>(
@@ -258,11 +263,11 @@ where
     where
         T: ?Sized + serde_core::Serialize,
     {
-        Self::wrong_type_error()
+        Self::wrong_type_error("newtype variant")
     }
 }
 
-impl<'a, S> SerializeSeq for FlattenedSequenceSerializer<'a, S>
+impl<S> SerializeSeq for FlattenedSequenceSerializer<'_, S>
 where
     S: serde_core::ser::SerializeSeq,
 {
@@ -296,12 +301,23 @@ where
 pub struct FlattenedSequenceDeserializer<'a, S>(&'a mut S);
 
 impl<'a, S> FlattenedSequenceDeserializer<'a, S> {
-    pub fn new(seq_access: &'a mut S) -> Self {
+    /// Wrap the in-progress sequence access `seq_access`.
+    pub fn new<'de>(seq_access: &'a mut S) -> Self
+    where
+        S: serde_core::de::SeqAccess<'de>,
+    {
         Self(seq_access)
     }
 }
 
-impl<'de, 'a, S> Deserializer<'de> for FlattenedSequenceDeserializer<'a, S>
+impl<S> std::fmt::Debug for FlattenedSequenceDeserializer<'_, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FlattenedSequenceDeserializer")
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'de, S> Deserializer<'de> for FlattenedSequenceDeserializer<'_, S>
 where
     S: serde_core::de::SeqAccess<'de>,
 {
@@ -311,7 +327,9 @@ where
     where
         V: serde_core::de::Visitor<'de>,
     {
-        Err(S::Error::custom("type must expect a sequence"))
+        Err(S::Error::custom(
+            "FlattenedSequenceDeserializer only supports sequence-shaped target types",
+        ))
     }
 
     serde_core::forward_to_deserialize_any! {
@@ -331,12 +349,17 @@ where
 /// Always returns `true`; a predicate for `#[serde(skip_serializing_if)]`.
 ///
 /// Use `#[serde(skip_serializing_if = "::json_serde::always")]` in place of
-/// `#[serde(skip_serializing)]` on fields that must never serialize when
-/// the containing type also derives the schemars 0.8 `JsonSchema`: schemars
-/// 0.8 (through 0.8.22) incorrectly marks `default` + `skip_serializing`
-/// fields as required in the generated schema, while conditionally-skipped
-/// fields are correctly optional. The two attribute forms serialize
-/// identically. See [`Absent`].
+/// `#[serde(skip_serializing)]` on fields with the [`Absent`] type when
+/// the containing type also derives `JsonSchema` (either schemars version).
+/// The two attribute forms serialize identically, but the schemas differ:
+/// schemars 0.8 (through 0.8.22) incorrectly marks `default` +
+/// `skip_serializing` fields as required, and schemars 1.0 (as of 1.2.2)
+/// spuriously annotates the field `writeOnly` (when, in fact, no value can be
+/// written!).
+///
+/// See [`Absent`].
+#[must_use]
+#[inline]
 pub fn always<T>(_: &T) -> bool {
     true
 }
@@ -468,7 +491,7 @@ mod tests {
     }
 
     #[test]
-    fn flatten_tuple_vec() {
+    fn test_flatten_tuple_vec() {
         #[derive(Debug, Eq, PartialEq)]
         struct TestType(u32, String, Vec<u32>);
 
@@ -556,7 +579,109 @@ mod tests {
         let input = "[1, \"Two\", \"Three\"]";
         let de_result = serde_json::from_str::<TestType>(input);
         let e = de_result.unwrap_err().to_string();
-        assert!(e.starts_with("invalid type"), "{e}",);
+        assert!(e.starts_with("invalid type"), "{e}");
+    }
+
+    /// Serialize `value` into a flattening serializer wrapped around a
+    /// JSON array and return the resulting error message.
+    fn flatten_ser_err(value: impl Serialize) -> String {
+        struct Wrapper<T>(T);
+
+        impl<T: Serialize> Serialize for Wrapper<T> {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                let mut seq = serializer.serialize_seq(None)?;
+                self.0
+                    .serialize(FlattenedSequenceSerializer::new(&mut seq))?;
+                seq.end()
+            }
+        }
+
+        serde_json::to_string(&Wrapper(value))
+            .unwrap_err()
+            .to_string()
+    }
+
+    #[test]
+    fn test_flatten_serializer_rejects_scalar() {
+        assert_eq!(
+            flatten_ser_err(42u32),
+            "FlattenedSequenceSerializer only supports sequence values, \
+             not u32",
+        );
+    }
+
+    #[test]
+    fn test_flatten_serializer_rejects_map() {
+        let map = std::collections::BTreeMap::from([("key", "value")]);
+        assert_eq!(
+            flatten_ser_err(map),
+            "FlattenedSequenceSerializer only supports sequence values, \
+             not map",
+        );
+    }
+
+    #[test]
+    fn test_flatten_deserializer_rejects_non_seq() {
+        #[derive(Debug)]
+        struct TestType;
+
+        impl<'de> Deserialize<'de> for TestType {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct Visitor;
+                impl<'de> serde::de::Visitor<'de> for Visitor {
+                    type Value = TestType;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        formatter.write_str("a sequence")
+                    }
+
+                    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                    where
+                        A: serde::de::SeqAccess<'de>,
+                    {
+                        // A non-seq target: u32 forwards to deserialize_any.
+                        let _ = u32::deserialize(FlattenedSequenceDeserializer::new(&mut seq))?;
+                        Ok(TestType)
+                    }
+                }
+                deserializer.deserialize_seq(Visitor)
+            }
+        }
+
+        let e = serde_json::from_str::<TestType>("[1, 2, 3]")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            e.starts_with(
+                "FlattenedSequenceDeserializer only supports sequence-shaped target types"
+            ),
+            "{e}",
+        );
+    }
+
+    #[test]
+    fn test_absent_serialize_requires_skip() {
+        // Without skip_serializing (or the always predicate), serializing
+        // a struct containing Absent is an error.
+        #[derive(Serialize)]
+        struct Test {
+            absent: Absent,
+        }
+
+        let e = serde_json::to_string(&Test { absent: Absent })
+            .unwrap_err()
+            .to_string();
+        assert_eq!(
+            e,
+            "field must be annotated with `skip_serializing` (or \
+             `skip_serializing_if = \"json_serde::always\"`)",
+        );
     }
 
     #[test]
@@ -594,6 +719,8 @@ mod tests {
 
         assert_eq!(serde_json::to_string(&test).unwrap(), "{}");
 
+        let de = serde_json::from_str::<Test>("{}").unwrap();
+        let Absent = de.absent;
         assert!(serde_json::from_str::<Test>(r#"{ "absent": null }"#).is_err());
 
         let schema = schemars08::schema_for!(Test);
@@ -612,13 +739,13 @@ mod tests {
     #[cfg(feature = "schemars1")]
     #[test]
     fn test_absent_schema_v1() {
-        // Unlike schemars 0.8.22, schemars 1.x correctly treats default +
-        // skip_serializing as an optional property, so no workaround akin to
-        // the `always` helper is needed here.
+        // The `always` form is the recommended annotation: a conditionally
+        // skipped field gets no `writeOnly` decoration, so the `false`
+        // schema survives intact.
         #[derive(Serialize, Deserialize, schemars1::JsonSchema)]
         #[schemars(crate = "schemars1")]
         struct Test {
-            #[serde(default, skip_serializing)]
+            #[serde(default, skip_serializing_if = "crate::always")]
             absent: Absent,
         }
 
@@ -631,18 +758,12 @@ mod tests {
         assert!(serde_json::from_str::<Test>(r#"{ "absent": null }"#).is_err());
 
         let schema = schemars1::schema_for!(Test);
-        // schemars 1.x marks skip_serializing fields as `writeOnly`; to
-        // attach that keyword it rewrites the `false` schema as its object
-        // form, `{"not": {}}`, which is equivalent.
         let expected = serde_json::json!({
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "Test",
             "type": "object",
             "properties": {
-                "absent": {
-                    "not": {},
-                    "writeOnly": true
-                }
+                "absent": false
             }
         });
 
