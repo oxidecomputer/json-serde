@@ -8,12 +8,20 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check-style:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
     - name: Report cargo version
       run: cargo --version
     - name: Report rustfmt version
@@ -21,20 +29,46 @@ jobs:
     - name: Check style
       run: cargo fmt -- --check
 
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+    - name: Report clippy version
+      run: cargo clippy --version
+    - name: Run clippy
+      run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+    - name: Build documentation
+      run: cargo doc --locked --no-deps --all-features
+      env:
+        RUSTDOCFLAGS: -D warnings
+
   build-and-test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ ubuntu-latest, windows-latest, macos-latest ]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
     - name: Build
       run: cargo build --locked --tests --verbose
     - name: Run tests (no features)
       run: cargo test --locked --verbose
+    # The feature legs exercise platform-independent code; run them on
+    # ubuntu only and keep windows/macos to the default-feature leg.
     - name: Run tests (schemars 0.8)
+      if: matrix.os == 'ubuntu-latest'
       run: cargo test --locked --features schemars08 --verbose
     - name: Run tests (schemars 1.x)
+      if: matrix.os == 'ubuntu-latest'
       run: cargo test --locked --features schemars1 --verbose
     - name: Run tests (all features)
+      if: matrix.os == 'ubuntu-latest'
       run: cargo test --locked --all-features --verbose
