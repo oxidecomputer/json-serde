@@ -328,7 +328,7 @@ where
         V: serde_core::de::Visitor<'de>,
     {
         Err(S::Error::custom(
-            "FlattenedSequenceDeserializer only supports sequence values",
+            "FlattenedSequenceDeserializer only supports sequence-shaped target types",
         ))
     }
 
@@ -658,7 +658,9 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(
-            e.starts_with("FlattenedSequenceDeserializer only supports sequence values"),
+            e.starts_with(
+                "FlattenedSequenceDeserializer only supports sequence-shaped target types"
+            ),
             "{e}",
         );
     }
