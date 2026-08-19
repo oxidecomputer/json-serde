@@ -1,0 +1,20 @@
+#
+# Dependabot configuration file
+#
+
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # Both schemars08 and schemars1 rename the schemars package; block
+      # major-version bumps so each stays on its line, while minor and
+      # patch updates flow to both.
+      - dependency-name: "schemars"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
