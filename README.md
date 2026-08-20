@@ -70,9 +70,11 @@ On types deriving `JsonSchema` (either version), use
 `#[serde(skip_serializing_if = "::json_serde::always")]` instead of
 `skip_serializing`. The `always` predicate serializes identically and produces
 better schemas: schemars 0.8 (through 0.8.22) incorrectly marks `default` +
-`skip_serializing` fields as required, and schemars 1.0 (as of 1.2.2)
-spuriously annotates the field `writeOnly` (when, in fact, no value can be
-written!).
+`skip_serializing` fields as required (fix proposed in
+[GREsau/schemars#532](https://github.com/GREsau/schemars/pull/532)), and
+schemars 1.0 (as of 1.2.2) spuriously annotates the field `writeOnly` (when,
+in fact, no value can be written!; fix proposed in
+[GREsau/schemars#533](https://github.com/GREsau/schemars/pull/533)).
 
 ## Features
 
