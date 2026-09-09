@@ -35,14 +35,64 @@ with `#[serde(default)]` it distinguishes absent from `null`. Applied to an
 
 ```rust
 #[derive(serde::Deserialize, serde::Serialize)]
-struct Foo {
+struct Data {
     /// may be absent, but may not be null
     #[serde(
         default,
         deserialize_with = "::json_serde::deserialize_some",
         skip_serializing_if = "Option::is_none",
     )]
-    field: Option<String>,
+    required_field: Option<String>,
+
+    /// distinct states for absent, null, and a value
+    #[serde(
+        default,
+        deserialize_with = "::json_serde::deserialize_some",
+        skip_serializing_if = "Option::is_none"
+    )]
+    tri_state_field: Option<Option<String>>,
+}
+```
+
+In addition, the `OptionalNullable` trait can be implemented for types that
+model this tri-state of absent, null, or a value. It has a default
+implementation for `Option<Option<T>>`.
+
+```rust
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+pub enum OptionField<T> {
+    #[default]
+    #[serde(skip)]
+    Absent,
+    Null,
+    Present(T),
+}
+
+impl<T> json_serde::OptionalNullable for OptionField<T> {
+    type Target = T;
+
+    fn is_absent(&self) -> bool {
+        matches!(self, OptionField::Absent)
+    }
+
+    fn null() -> Self {
+        Self::Null
+    }
+
+    fn value(value: Self::Target) -> Self {
+        Self::Present(value)
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct Data {
+    /// default constructs an absent value; deserialize accepts a null or value
+    #[serde(
+        default,
+        skip_serializing_if = "::json_serde::OptionalNullable::is_absent"
+    )]
+    optional_option: OptionField<String>,
 }
 ```
 

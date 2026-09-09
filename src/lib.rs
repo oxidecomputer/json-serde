@@ -23,7 +23,7 @@ use serde_core::{
 ///
 /// ```
 /// # #[derive(serde::Deserialize, serde::Serialize)]
-/// # struct Foo {
+/// # struct Data {
 ///     #[serde(
 ///         default,
 ///         deserialize_with = "::json_serde::deserialize_some",
@@ -37,7 +37,7 @@ use serde_core::{
 /// was absent, `null`, or had a value:
 /// ```
 /// # #[derive(serde::Deserialize, serde::Serialize)]
-/// # struct Foo {
+/// # struct Data {
 ///     #[serde(
 ///         default,
 ///         deserialize_with = "::json_serde::deserialize_some",
@@ -431,6 +431,39 @@ impl schemars1::JsonSchema for Absent {
 
     fn inline_schema() -> bool {
         true
+    }
+}
+
+/// Models a fields that may be absent, null, or a value.
+///
+/// `Default` is required; it constructs the absent state.
+pub trait OptionalNullable: Default {
+    /// The type for the value when present and non-null.
+    type Target;
+
+    /// Returns true if the instance represents an absent value.
+    fn is_absent(&self) -> bool;
+
+    /// Construct a null.
+    fn null() -> Self;
+
+    /// Construct a value.
+    fn value(value: Self::Target) -> Self;
+}
+
+impl<T> OptionalNullable for Option<Option<T>> {
+    type Target = T;
+
+    fn is_absent(&self) -> bool {
+        self.is_none()
+    }
+
+    fn null() -> Self {
+        Some(None)
+    }
+
+    fn value(value: Self::Target) -> Self {
+        Some(Some(value))
     }
 }
 
