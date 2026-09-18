@@ -434,6 +434,80 @@ impl schemars1::JsonSchema for Absent {
     }
 }
 
+/// Type for a value that cannot exist.
+///
+/// [`Absent`] is the other type for an impossible value, and the two are not
+/// interchangeable. `Absent` says a struct field must not appear on the wire,
+/// which is a statement about serialization; the field still has to hold
+/// something, so `Absent` can be created and implements `Default`. `Never`
+/// says the type has no values at all. A struct with a `Never` field can
+/// itself never be created!
+///
+/// `Serialize` is vacuous: with no value to receive, its body is an empty
+/// match. `Deserialize` always fails, which is the true answer, since no JSON
+/// document deserializes into a type with no values. With the `schemars08` and
+/// `schemars1` features, `JsonSchema` is the `false` schema, as it is for
+/// `Absent`.
+///
+/// There is deliberately no `Default`: a type with no values has nothing to
+/// return.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Never {}
+
+impl serde_core::Serialize for Never {
+    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // No value of this type exists, so this is unreachable rather
+        // than an error path.
+        match *self {}
+    }
+}
+
+impl<'de> Deserialize<'de> for Never {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde_core::de::Error;
+        // Chew up any input, so the error names the real problem rather
+        // than whatever the input happened to be.
+        let _ = serde_core::de::IgnoredAny::deserialize(deserializer)?;
+        Err(D::Error::custom("no value of this type can exist"))
+    }
+}
+
+#[cfg(feature = "schemars08")]
+impl schemars08::JsonSchema for Never {
+    fn schema_name() -> String {
+        "Never".to_string()
+    }
+
+    fn json_schema(_: &mut schemars08::r#gen::SchemaGenerator) -> schemars08::schema::Schema {
+        schemars08::schema::Schema::Bool(false)
+    }
+
+    fn is_referenceable() -> bool {
+        false
+    }
+}
+
+#[cfg(feature = "schemars1")]
+impl schemars1::JsonSchema for Never {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("Never")
+    }
+
+    fn json_schema(_: &mut schemars1::SchemaGenerator) -> schemars1::Schema {
+        schemars1::Schema::from(false)
+    }
+
+    fn inline_schema() -> bool {
+        true
+    }
+}
+
 /// Models a fields that may be absent, null, or a value.
 ///
 /// `Default` is required; it constructs the absent state.
@@ -801,5 +875,43 @@ mod tests {
         });
 
         assert_eq!(serde_json::to_value(&schema).unwrap(), expected);
+    }
+
+    #[test]
+    fn never_containers_hold_only_their_empty_document() {
+        use crate::Never;
+
+        // The whole point: a container of Never still round-trips, because the
+        // empty array, the empty object, and null are the documents these
+        // positions accept.
+        let empty: Vec<Never> = serde_json::from_str("[]").unwrap();
+        assert!(empty.is_empty());
+        assert_eq!(serde_json::to_string(&empty).unwrap(), "[]");
+
+        let none: Option<Never> = serde_json::from_str("null").unwrap();
+        assert!(none.is_none());
+        assert_eq!(serde_json::to_string(&none).unwrap(), "null");
+
+        let map: std::collections::BTreeMap<String, Never> = serde_json::from_str("{}").unwrap();
+        assert!(map.is_empty());
+        assert_eq!(serde_json::to_string(&map).unwrap(), "{}");
+    }
+
+    #[test]
+    fn never_rejects_any_value() {
+        use crate::Never;
+
+        // Anything that would need an actual value fails, and the message
+        // names the real problem rather than the input.
+        let err = serde_json::from_str::<Vec<Never>>("[1]").unwrap_err();
+        assert!(
+            err.to_string().contains("no value of this type can exist"),
+            "unexpected error: {err}"
+        );
+        let err = serde_json::from_str::<Option<Never>>("1").unwrap_err();
+        assert!(
+            err.to_string().contains("no value of this type can exist"),
+            "unexpected error: {err}"
+        );
     }
 }
