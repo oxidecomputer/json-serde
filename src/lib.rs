@@ -12,7 +12,7 @@ extern crate self as json_serde;
 use serde_core::{
     Deserialize, Deserializer, Serializer,
     de::Error,
-    ser::{Impossible, SerializeSeq},
+    ser::{Impossible, SerializeSeq, SerializeTuple, SerializeTupleStruct},
 };
 
 /// Deserializer function that always produces `Some(T)` if a value is present.
@@ -61,14 +61,10 @@ where
 
 /// Serializer used to flatten sequences into other sequences.
 ///
-/// Wrap an in-progress [`SerializeSeq`] and serialize a sequence-shaped
-/// value into the wrapper: the value's elements are appended to the
-/// enclosing sequence. Values that do not serialize as a sequence are an
-/// error. Ending the flattened sequence leaves the enclosing serializer
-/// open for further elements.
-///
-/// The value must serialize as a serde *seq* (e.g. `Vec<T>`); fixed-size
-/// tuples and arrays serialize via `serialize_tuple` and are rejected.
+/// Wrap an in-progress [`SerializeSeq`] and serialize an array-shaped value:
+/// the value's elements are appended to the enclosing sequence. Values that do
+/// not serialize as an array produce an error. Ending the flattened sequence
+/// leaves the enclosing serializer open for further elements.
 pub struct FlattenedSequenceSerializer<'a, S>(&'a mut S);
 
 impl<'a, S> FlattenedSequenceSerializer<'a, S>
@@ -103,8 +99,8 @@ where
     type Error = S::Error;
 
     type SerializeSeq = Self;
-    type SerializeTuple = Impossible<Self::Ok, Self::Error>;
-    type SerializeTupleStruct = Impossible<Self::Ok, Self::Error>;
+    type SerializeTuple = Self;
+    type SerializeTupleStruct = Self;
     type SerializeTupleVariant = Impossible<Self::Ok, Self::Error>;
     type SerializeMap = Impossible<Self::Ok, Self::Error>;
     type SerializeStruct = Impossible<Self::Ok, Self::Error>;
@@ -115,7 +111,7 @@ where
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        Self::wrong_type_error("tuple")
+        Ok(self)
     }
 
     fn serialize_tuple_struct(
@@ -123,7 +119,7 @@ where
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        Self::wrong_type_error("tuple struct")
+        Ok(self)
     }
 
     fn serialize_tuple_variant(
@@ -245,12 +241,13 @@ where
     fn serialize_newtype_struct<T>(
         self,
         _name: &'static str,
-        _value: &T,
+        value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + serde_core::Serialize,
     {
-        Self::wrong_type_error("newtype struct")
+        // Forward to the newtype for serialization.
+        value.serialize(self)
     }
 
     fn serialize_newtype_variant<T>(
@@ -287,17 +284,56 @@ where
     }
 }
 
+impl<S> SerializeTuple for FlattenedSequenceSerializer<'_, S>
+where
+    S: serde_core::ser::SerializeSeq,
+{
+    type Ok = ();
+
+    type Error = S::Error;
+
+    fn serialize_element<T>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + serde_core::Serialize,
+    {
+        self.0.serialize_element(value)
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        Ok(())
+    }
+}
+
+impl<S> SerializeTupleStruct for FlattenedSequenceSerializer<'_, S>
+where
+    S: serde_core::ser::SerializeSeq,
+{
+    type Ok = ();
+
+    type Error = S::Error;
+
+    fn serialize_field<T>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + serde_core::Serialize,
+    {
+        self.0.serialize_element(value)
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        Ok(())
+    }
+}
+
 /// Deserializer used to extract flattened sequences from the end of another
 /// sequence.
 ///
 /// Wrap an in-progress [`SeqAccess`](serde_core::de::SeqAccess) and
-/// deserialize a sequence-shaped value from the wrapper: the value
+/// deserialize an array-shaped value from the wrapper: the value
 /// consumes the remaining elements of the enclosing sequence. Target
 /// types that do not expect a sequence are an error.
 ///
-/// The target must deserialize as a serde *seq* (e.g. `Vec<T>`);
-/// fixed-size tuples and arrays deserialize via `deserialize_tuple` and
-/// are rejected.
+/// The target must deserialize from an array; in JSON this means a *seq* (e.g.
+/// `Vec<T>`), tuple, fixed-size array, or tuple struct.
 pub struct FlattenedSequenceDeserializer<'a, S>(&'a mut S);
 
 impl<'a, S> FlattenedSequenceDeserializer<'a, S> {
@@ -334,8 +370,8 @@ where
 
     serde_core::forward_to_deserialize_any! {
         bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string
-        bytes byte_buf option unit unit_struct newtype_struct tuple
-        tuple_struct map struct enum identifier ignored_any
+        bytes byte_buf option unit unit_struct map struct enum
+        identifier ignored_any
     }
 
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -343,6 +379,37 @@ where
         V: serde_core::de::Visitor<'de>,
     {
         visitor.visit_seq(self.0)
+    }
+
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde_core::de::Visitor<'de>,
+    {
+        visitor.visit_seq(self.0)
+    }
+
+    fn deserialize_tuple_struct<V>(
+        self,
+        _name: &'static str,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: serde_core::de::Visitor<'de>,
+    {
+        visitor.visit_seq(self.0)
+    }
+
+    fn deserialize_newtype_struct<V>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: serde_core::de::Visitor<'de>,
+    {
+        // Forward to the newtype.
+        visitor.visit_newtype_struct(self)
     }
 }
 
@@ -687,6 +754,140 @@ mod tests {
         let de_result = serde_json::from_str::<TestType>(input);
         let e = de_result.unwrap_err().to_string();
         assert!(e.starts_with("invalid type"), "{e}");
+    }
+
+    /// A tuple struct whose remainder is any sequence-shaped `R`, spliced
+    /// through the flattening helpers.
+    #[derive(Debug, Eq, PartialEq)]
+    struct Flat<R>(u32, R);
+
+    impl<R: Serialize> Serialize for Flat<R> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let mut seq = serializer.serialize_seq(None)?;
+            seq.serialize_element(&self.0)?;
+            self.1
+                .serialize(FlattenedSequenceSerializer::new(&mut seq))?;
+            seq.end()
+        }
+    }
+
+    impl<'de, R: Deserialize<'de>> Deserialize<'de> for Flat<R> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            struct Visitor<R>(std::marker::PhantomData<R>);
+            impl<'de, R: Deserialize<'de>> serde::de::Visitor<'de> for Visitor<R> {
+                type Value = Flat<R>;
+
+                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    formatter.write_str("a flattened tuple")
+                }
+
+                fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                where
+                    A: serde::de::SeqAccess<'de>,
+                {
+                    let v_0 = seq
+                        .next_element()?
+                        .ok_or_else(|| serde::de::Error::invalid_length(0, &"a tuple of size 1"))?;
+                    let rest =
+                        Deserialize::deserialize(FlattenedSequenceDeserializer::new(&mut seq))?;
+                    Ok(Flat(v_0, rest))
+                }
+            }
+            deserializer.deserialize_seq(Visitor(std::marker::PhantomData))
+        }
+    }
+
+    /// Serialize `value`, check the JSON, and check that it reads back equal.
+    fn flat_round_trip<R>(value: Flat<R>, json: &str)
+    where
+        R: Serialize + serde::de::DeserializeOwned + Eq + std::fmt::Debug,
+    {
+        let serialized = serde_json::to_string(&value).unwrap();
+        assert_eq!(serialized, json);
+        assert_eq!(serde_json::from_str::<Flat<R>>(&serialized).unwrap(), value);
+    }
+
+    // A fixed-size array and a tuple go through serialize_tuple and
+    // deserialize_tuple; they take exactly their length from the end of the
+    // enclosing array.
+    #[test]
+    fn test_flatten_array_and_tuple() {
+        flat_round_trip(Flat(1, [2u32, 3]), "[1,2,3]");
+        flat_round_trip(Flat(1, ("two".to_string(), true)), "[1,\"two\",true]");
+
+        let e = serde_json::from_str::<Flat<[u32; 2]>>("[1,2]")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            e.starts_with("invalid length 1, expected an array of length 2"),
+            "{e}"
+        );
+
+        let e = serde_json::from_str::<Flat<(String, bool)>>("[1,\"two\"]")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            e.starts_with("invalid length 1, expected a tuple of size 2"),
+            "{e}"
+        );
+    }
+
+    // A derived tuple struct goes through serialize_tuple_struct and
+    // deserialize_tuple_struct.
+    #[test]
+    fn test_flatten_tuple_struct() {
+        #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+        struct Pair(u32, u32);
+
+        flat_round_trip(Flat(1, Pair(2, 3)), "[1,2,3]");
+
+        let e = serde_json::from_str::<Flat<Pair>>("[1,2]")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            e.starts_with("invalid length 1, expected tuple struct Pair with 2 elements"),
+            "{e}"
+        );
+    }
+
+    // A derived newtype struct is transparent on the wire: the flattening
+    // helpers forward to the inner value, which has to be sequence-shaped
+    // itself.
+    #[test]
+    fn test_flatten_newtype_struct() {
+        #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+        struct Items(Vec<u32>);
+
+        #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+        struct Fixed([u32; 2]);
+
+        #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+        struct Scalar(u32);
+
+        flat_round_trip(Flat(1, Items(vec![2, 3])), "[1,2,3]");
+        flat_round_trip(Flat(1, Items(vec![])), "[1]");
+        flat_round_trip(Flat(1, Fixed([2, 3])), "[1,2,3]");
+
+        assert_eq!(
+            flatten_ser_err(Scalar(42)),
+            "FlattenedSequenceSerializer only supports sequence values, \
+             not u32",
+        );
+        let e = serde_json::from_str::<Flat<Scalar>>("[1,2]")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            e.starts_with(
+                "FlattenedSequenceDeserializer only supports sequence-shaped target types"
+            ),
+            "{e}",
+        );
     }
 
     /// Serialize `value` into a flattening serializer wrapped around a
