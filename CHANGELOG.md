@@ -2,6 +2,9 @@
 
 ## Next
 
+* Support in `FlattenedSequenceSerializer` and `FlattenedSequenceDeserializer`
+  for tuple, array, or tuple struct in addition to seq.
+
 ## [1.0.0] - 2026-11-07
 
 * Initial stable release
