@@ -2,6 +2,8 @@
 
 ## Next
 
+## [1.1.0] - 2026-11-16
+
 * Support in `FlattenedSequenceSerializer` and `FlattenedSequenceDeserializer`
   for tuple, array, or tuple struct in addition to seq.
 
@@ -21,6 +23,7 @@
 
 * Initial release
 
+[1.1.0]: https://github.com/oxidecomputer/json-serde/releases/v1.1.0
 [1.0.0]: https://github.com/oxidecomputer/json-serde/releases/v1.0.0
 [0.0.1-alpha.3]: https://github.com/oxidecomputer/json-serde/releases/v0.0.1-alpha.3
 [0.0.1-alpha.2]: https://github.com/oxidecomputer/json-serde/releases/v0.0.1-alpha.2
