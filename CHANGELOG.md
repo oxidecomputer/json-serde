@@ -2,6 +2,10 @@
 
 ## Next
 
+## [1.1.1] - 2026-11-21
+
+* Lower the MSRV to 1.85, the first release with edition 2024
+
 ## [1.1.0] - 2026-11-16
 
 * Support in `FlattenedSequenceSerializer` and `FlattenedSequenceDeserializer`
@@ -23,6 +27,7 @@
 
 * Initial release
 
+[1.1.1]: https://github.com/oxidecomputer/json-serde/releases/v1.1.1
 [1.1.0]: https://github.com/oxidecomputer/json-serde/releases/v1.1.0
 [1.0.0]: https://github.com/oxidecomputer/json-serde/releases/v1.0.0
 [0.0.1-alpha.3]: https://github.com/oxidecomputer/json-serde/releases/v0.0.1-alpha.3

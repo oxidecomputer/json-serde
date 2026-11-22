@@ -1,8 +1,8 @@
 [package]
 name = "json-serde"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2024"
-rust-version = "1.97"
+rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/oxidecomputer/json-serde"
 description = "Runtime serde helpers for esoteric JSON semantics"
